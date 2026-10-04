@@ -1,0 +1,56 @@
+[package]
+name = "liteprocguard"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["LiteProcGuard Contributors"]
+description = "纯本地、无遥测、跨平台进程资源节流守护工具（CPU 上限 / 内存硬阈值 / 自动降权 / 超限策略）"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/yourname/liteprocguard"
+keywords = ["process", "cpu", "memory", "cgroup", "resource"]
+categories = ["command-line-utilities", "os"]
+
+[[bin]]
+name = "liteprocguard"
+path = "src/main.rs"
+
+# ---------------------------------------------------------------------------
+# 依赖刻意保持极简：
+#   * serde / serde_json —— 规则与配置 JSON 读写（极其稳定，纯 Rust）
+#   * libc               —— Unix 下 nice/setpriority/kill/geteuid
+#   * windows-sys        —— Windows 下 Job Object / 进程枚举 / 优先级
+# 进程枚举在 Linux 侧直接解析 /proc，避免引入任何重型运行时。
+# ---------------------------------------------------------------------------
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_JobObjects",
+    "Win32_System_SystemInformation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_RemoteDesktop",
+] }
+
+# ---------------------------------------------------------------------------
+# 发布配置：静态优先、体积优先、去符号、panic 即 abort。
+# ---------------------------------------------------------------------------
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+incremental = false
+
+[profile.dev]
+opt-level = 1

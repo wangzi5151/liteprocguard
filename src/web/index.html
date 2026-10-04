@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiteProcGuard · 本地进程资源守护</title>
+<style>
+  :root {
+    --bg: #eef1f3;
+    --panel: #ffffff;
+    --line: #d3dbe0;
+    --text: #2b3a42;
+    --muted: #6b7c86;
+    --accent: #4a7c8c;
+    --accent-soft: #dfe9ec;
+    --danger: #a85b5b;
+    --warn: #a8894f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 14px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .5px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+    gap: 16px;
+    padding: 16px 22px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  button {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover { background: var(--accent-soft); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  input[type=text], input[type=number], select {
+    background: #fbfcfd;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--text);
+    font-size: 13px;
+  }
+  input[type=range] { width: 130px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.selected { background: var(--accent-soft); }
+  .proc-list { max-height: 420px; overflow: auto; }
+  .muted { color: var(--muted); }
+  .badge { font-size: 11px; padding: 1px 5px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); }
+  .badge.warn { background: #f2ead9; color: var(--warn); }
+  .rulecard { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; }
+  .rulecard .title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .field label { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+  canvas { width: 100%; height: 90px; background: #fbfcfd; border: 1px solid var(--line); border-radius: 4px; }
+  pre#logs {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #45565f;
+  }
+  .kv { color: var(--muted); font-size: 12px; }
+  .kv b { color: var(--text); font-weight: 500; }
+  footer { padding: 10px 22px 24px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LiteProcGuard</h1>
+  <span class="sub">纯本地进程资源守护 · 无遥测 · 无外发网络</span>
+  <span class="spacer"></span>
+  <span id="status" class="sub">加载中…</span>
+</header>
+
+<main>
+  <div>
+    <section class="panel">
+      <h2>进程列表</h2>
+      <div class="row">
+        <input id="filter" type="text" placeholder="按名称模糊过滤，如 chrome / rustc" style="flex:1">
+        <button onclick="loadProcesses()">刷新</button>
+      </div>
+      <div class="proc-list">
+        <table>
+          <thead>
+            <tr><th>PID</th><th>名称</th><th>用户</th><th>CPU%</th><th>内存</th><th></th></tr>
+          </thead>
+          <tbody id="procs"></tbody>
+        </table>
+      </div>
+      <p class="kv" style="margin:8px 0 0">点击进程查看实时曲线；勾选后可使用下方“快速规则”加入规则。</p>
+      <canvas id="spark" width="600" height="90"></canvas>
+      <p class="kv" id="sparkLabel">未选择进程</p>
+    </section>
+
+    <section class="panel">
+      <h2>快速限制选中进程</h2>
+      <div class="row">
+        <span class="kv">CPU 上限：<b id="qCpuLabel">50%</b></span>
+        <input id="qCpu" type="range" min="1" max="100" value="50" oninput="document.getElementById('qCpuLabel').textContent=this.value+'%'">
+        <span class="kv">内存上限 MiB：</span>
+        <input id="qMem" type="number" value="1024" style="width:90px">
+        <button class="primary" onclick="quickRule()">生成并保存规则</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">将基于选中进程名创建一条“包含匹配”规则，写入当前规则集。</p>
+    </section>
+  </div>
+
+  <div>
+    <section class="panel">
+      <h2>守护控制</h2>
+      <div class="row">
+        <button class="primary" onclick="guardStart()">启动守护</button>
+        <button onclick="guardStop()">停止守护</button>
+        <button class="danger" onclick="clearAll()">紧急清除全部限制</button>
+      </div>
+      <div class="row">
+        <div class="field"><label>轮询间隔（秒，≥1）</label>
+          <input id="gInterval" type="number" min="1" value="2" style="width:80px"></div>
+        <div class="field"><label>规则集</label>
+          <select id="gRuleset" style="min-width:140px"></select></div>
+        <label class="kv"><input id="gTemp" type="checkbox"> 启用温度联动</label>
+      </div>
+      <p class="kv" id="backendInfo"></p>
+    </section>
+
+    <section class="panel">
+      <h2>规则集编辑器</h2>
+      <div class="row">
+        <div class="field" style="flex:1"><label>规则集名称</label>
+          <input id="rsName" type="text" style="width:100%"></div>
+        <button onclick="loadRuleset()">载入</button>
+        <button class="primary" onclick="saveRuleset()">保存</button>
+      </div>
+      <div id="rules"></div>
+      <div class="row">
+        <button onclick="addRule()">+ 新增规则</button>
+        <span class="muted" style="font-size:12px">匹配支持 * 与 ? 通配；排除列表用逗号分隔。</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>日志（仅本地）</h2>
+      <div class="row">
+        <button onclick="loadLogs()">刷新</button>
+        <button onclick="clearLogs()">清空</button>
+      </div>
+      <pre id="logs">暂无日志</pre>
+    </section>
+  </div>
+</main>
+
+<footer>
+  本工具是用户态资源管理器，不是内核驱动；部分受系统保护的进程无法限制。请勿用于管控他人程序。
+</footer>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+const api = (path, opts) => {
+  const sep = path.includes('?') ? '&' : '?';
+  return fetch(path + sep + 'token=' + encodeURIComponent(TOKEN), opts)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r; });
+};
+
+let processes = [];
+let selected = null;
+let ruleset = { name: '默认', rules: [], blacklist: [] };
+let history = [];
+
+function el(id) { return document.getElementById(id); }
+
+async function loadStatus() {
+  try {
+    const s = await api('/api/status').then(r => r.json());
+    el('status').textContent =
+      `后端 ${s.backend} · 守护 ${s.guard_running ? '运行中' : '未运行'} · ` +
+      `温度 ${s.temperature != null ? s.temperature.toFixed(1) + '°C' : '不可用'} · ` +
+      `${s.elevated ? '已提权' : '普通用户'}`;
+    el('backendInfo').textContent = `CPU 后端：${s.backend}　数据目录：${s.data_dir}`;
+    if (!s.temperature_available) el('gTemp').disabled = true;
+  } catch (e) { el('status').textContent = '状态读取失败：' + e.message; }
+}
+
+async function loadProcesses() {
+  const f = el('filter').value.trim();
+  let url = '/api/processes';
+  const list = await api(url).then(r => r.json());
+  processes = list;
+  const tbody = el('procs');
+  tbody.innerHTML = '';
+  const filtered = list.filter(p => !f || p.name.toLowerCase().includes(f.toLowerCase()));
+  for (const p of filtered) {
+    const tr = document.createElement('tr');
+    tr.dataset.pid = p.pid;
+    if (selected && selected.pid === p.pid) tr.className = 'selected';
+    tr.innerHTML = `<td>${p.pid}</td><td>${esc(p.name)}</td><td>${esc(p.user)}</td>` +
+      `<td>${p.cpu_percent.toFixed(1)}</td><td>${p.memory_mb.toFixed(0)}M</td>` +
+      `<td>${p.is_service ? '<span class="badge warn">服务</span>' : ''}</td>`;
+    tr.onclick = () => selectProcess(p);
+    tbody.appendChild(tr);
+  }
+  if (selected) {
+    const cur = list.find(p => p.pid === selected.pid);
+    if (cur) { selected = cur; pushHistory(cur); }
+  }
+  drawSpark();
+}
+
+function selectProcess(p) {
+  selected = p;
+  history = [];
+  el('sparkLabel').textContent = `曲线：${p.name} (PID ${p.pid})`;
+  document.querySelectorAll('#procs tr').forEach(tr => {
+    tr.classList.toggle('selected', Number(tr.dataset.pid) === p.pid);
+  });
+  pushHistory(p);
+  drawSpark();
+}
+
+function pushHistory(p) {
+  history.push(p.cpu_percent);
+  if (history.length > 80) history.shift();
+}
+
+function drawSpark() {
+  const c = el('spark'), ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#d3dbe0';
+  ctx.beginPath(); ctx.moveTo(0, h - 1); ctx.lineTo(w, h - 1); ctx.stroke();
+  if (history.length < 2) return;
+  const max = Math.max(10, ...history);
+  ctx.beginPath();
+  history.forEach((v, i) => {
+    const x = (i / (history.length - 1)) * (w - 2) + 1;
+    const y = h - 4 - (v / max) * (h - 10);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.strokeStyle = '#4a7c8c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#6b7c86';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('峰值 ' + max.toFixed(0) + '%', 6, 12);
+}
+
+async function loadRulesets() {
+  const names = await api('/api/rulesets').then(r => r.json());
+  const sel = el('gRuleset');
+  sel.innerHTML = '';
+  for (const n of names) {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  }
+}
+
+async function loadRuleset() {
+  const name = el('gRuleset').value || el('rsName').value;
+  const rs = await api('/api/ruleset?name=' + encodeURIComponent(name)).then(r => r.json());
+  ruleset = rs;
+  el('rsName').value = rs.name;
+  renderRules();
+}
+
+function renderRules() {
+  const box = el('rules');
+  box.innerHTML = '';
+  ruleset.rules.forEach((r, idx) => {
+    const d = document.createElement('div');
+    d.className = 'rulecard';
+    d.innerHTML = `
+      <div class="title">
+        <b>${esc(r.name || r.match_name)}</b>
+        <button class="danger" data-del="${idx}">删除</button>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>名称</label><input type="text" data-f="name" value="${esc(r.name || '')}"></div>
+        <div class="field"><label>匹配（* ? 通配）</label><input type="text" data-f="match_name" value="${esc(r.match_name)}"></div>
+        <div class="field"><label>CPU 上限 %（留空=不限）</label>
+          <input type="number" min="1" max="100" data-f="cpu_limit_percent" value="${r.cpu_limit_percent ?? ''}"></div>
+        <div class="field"><label>内存上限 MiB（留空=不限）</label>
+          <input type="number" min="1" data-f="memory_limit_mb" value="${r.memory_limit_mb ?? ''}"></div>
+        <div class="field"><label>内存动作</label>
+          <select data-f="memory_action">
+            ${opt('warn', '仅告警', r.memory_action)}
+            ${opt('lower_priority', '降低优先级', r.memory_action)}
+            ${opt('gc_hint', 'GC 提示', r.memory_action)}
+            ${opt('terminate', '温和终止', r.memory_action)}
+          </select></div>
+        <div class="field"><label>优先级</label>
+          <select data-f="priority">
+            ${opt('', '不调整', r.priority)}
+            ${opt('high', '高', r.priority)}
+            ${opt('above_normal', '高于正常', r.priority)}
+            ${opt('normal', '正常', r.priority)}
+            ${opt('below_normal', '低于正常', r.priority)}
+            ${opt('idle', '空闲', r.priority)}
+          </select></div>
+        <div class="field" style="grid-column:1/3"><label>排除列表（逗号分隔）</label>
+          <input type="text" data-f="exclude" value="${esc((r.exclude || []).join(','))}"></div>
+        <label class="kv"><input type="checkbox" data-f="enabled" ${r.enabled ? 'checked' : ''}> 启用</label>
+      </div>`;
+    d.querySelectorAll('[data-f]').forEach(inp => {
+      inp.addEventListener('change', () => readRuleFromDom(idx, d));
+    });
+    box.appendChild(d);
+  });
+  box.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => {
+      ruleset.rules.splice(Number(b.dataset.del), 1);
+      ruleset.rules.forEach(readRuleFromDom);
+      renderRules();
+    };
+  });
+}
+
+function opt(value, label, cur) {
+  return `<option value="${value}" ${String(cur ?? '') === value ? 'selected' : ''}>${label}</option>`;
+}
+
+function readRuleFromDom(idx, card) {
+  const r = ruleset.rules[idx];
+  card.querySelectorAll('[data-f]').forEach(inp => {
+    const f = inp.dataset.f;
+    if (f === 'enabled') { r.enabled = inp.checked; return; }
+    if (f === 'exclude') { r.exclude = inp.value.split(',').map(s => s.trim()).filter(Boolean); return; }
+    if (f === 'cpu_limit_percent') { r.cpu_limit_percent = inp.value === '' ? null : Number(inp.value); return; }
+    if (f === 'memory_limit_mb') { r.memory_limit_mb = inp.value === '' ? null : Number(inp.value); return; }
+    if (f === 'priority') { r.priority = inp.value === '' ? null : inp.value; return; }
+    r[f] = inp.value;
+  });
+}
+
+function addRule() {
+  ruleset.rules.push({
+    id: 'r' + Math.random().toString(16).slice(2, 10),
+    name: '新规则', match_name: '*', exclude: [],
+    cpu_limit_percent: 50, memory_limit_mb: null,
+    memory_action: 'warn', priority: null, enabled: true, temperature_link: null
+  });
+  renderRules();
+}
+
+async function saveRuleset() {
+  // 从 DOM 同步所有规则。
+  document.querySelectorAll('#rules .rulecard').forEach((card, idx) => readRuleFromDom(idx, card));
+  ruleset.name = el('rsName').value || '默认';
+  await api('/api/ruleset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ruleset)
+  });
+  await loadRulesets();
+  alert('规则集已保存：' + ruleset.name);
+}
+
+function quickRule() {
+  if (!selected) { alert('请先在进程列表中选择一个进程。'); return; }
+  const cpu = Number(el('qCpu').value);
+  const mem = Number(el('qMem').value) || null;
+  const name = selected.name.replace(/\.exe$/i, '');
+  ruleset.rules.push({
+    id: 'r' + Math.random().toString(16).slice(2, 10),
+    name: name + ' 限制',
+    match_name: name,
+    exclude: [], cpu_limit_percent: cpu, memory_limit_mb: mem,
+    memory_action: 'warn', priority: null, enabled: true, temperature_link: null
+  });
+  renderRules();
+  saveRuleset();
+}
+
+async function guardStart() {
+  await api('/api/guard/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      interval: Number(el('gInterval').value) || 2,
+      ruleset: el('gRuleset').value || '',
+      temperature: el('gTemp').checked
+    })
+  });
+  loadStatus();
+}
+
+async function guardStop() { await api('/api/guard/stop', { method: 'POST' }); loadStatus(); }
+async function clearAll() {
+  if (!confirm('确认清除全部限制并恢复系统原生状态？')) return;
+  await api('/api/clear', { method: 'POST' });
+  alert('已尝试清除全部限制。');
+}
+
+async function loadLogs() {
+  const text = await api('/api/logs?tail=150').then(r => r.text());
+  el('logs').textContent = text || '暂无日志';
+}
+async function clearLogs() { await api('/api/logs/clear', { method: 'POST' }); loadLogs(); }
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// 初始化
+(async function () {
+  await loadStatus();
+  await loadRulesets();
+  await loadRuleset();
+  await loadProcesses();
+  await loadLogs();
+  setInterval(async () => { await loadStatus(); await loadProcesses(); }, 2000);
+  setInterval(loadLogs, 10000);
+})();
+</script>
+</body>
+</html>

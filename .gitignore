@@ -1,0 +1,22 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.orig
+
+# 构建产物
+/dist
+/release
+*.zip
+*.tar.gz
+*.exe
+
+# 本地运行数据（规则、日志、配置）不应提交
+.liteprocguard/
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,51 @@
+{
+  "name": "省电预设",
+  "rules": [
+    {
+      "id": "preset-chrome-power",
+      "name": "浏览器省电",
+      "match_name": "*chrome*",
+      "exclude": ["liteprocguard"],
+      "cpu_limit_percent": 30.0,
+      "memory_limit_mb": 2048,
+      "memory_action": "warn",
+      "priority": "below_normal",
+      "enabled": true,
+      "temperature_link": null
+    },
+    {
+      "id": "preset-firefox-power",
+      "name": "火狐省电",
+      "match_name": "*firefox*",
+      "exclude": [],
+      "cpu_limit_percent": 30.0,
+      "memory_limit_mb": 2048,
+      "memory_action": "warn",
+      "priority": null,
+      "enabled": true,
+      "temperature_link": null
+    },
+    {
+      "id": "preset-sync-power",
+      "name": "后台同步限速",
+      "match_name": "*sync*",
+      "exclude": [],
+      "cpu_limit_percent": 15.0,
+      "memory_limit_mb": null,
+      "memory_action": "warn",
+      "priority": "idle",
+      "enabled": true,
+      "temperature_link": null
+    }
+  ],
+  "blacklist": [
+    "System", "Registry", "smss.exe", "csrss.exe", "wininit.exe",
+    "winlogon.exe", "services.exe", "lsass.exe", "svchost.exe",
+    "explorer.exe", "dwm.exe", "audiodg.exe", "MsMpEng.exe",
+    "SearchIndexer.exe", "systemd", "systemd-*", "init", "kthreadd",
+    "kworker*", "ksoftirqd*", "migration*", "watchdog*", "dbus-daemon",
+    "udevd", "systemd-udevd", "rsyslogd", "sshd", "cron", "crond",
+    "init*", "zygote*", "surfaceflinger", "logd", "vold", "healthd",
+    "liteprocguard"
+  ]
+}

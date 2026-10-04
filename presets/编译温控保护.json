@@ -1,0 +1,51 @@
+{
+  "name": "编译温控保护",
+  "rules": [
+    {
+      "id": "preset-gcc-thermal",
+      "name": "GCC 前端控温",
+      "match_name": "cc1*",
+      "exclude": [],
+      "cpu_limit_percent": 70.0,
+      "memory_limit_mb": null,
+      "memory_action": "warn",
+      "priority": "below_normal",
+      "enabled": true,
+      "temperature_link": { "threshold_c": 75.0, "reduced_cpu_percent": 40.0 }
+    },
+    {
+      "id": "preset-rustc-thermal",
+      "name": "Rust 编译控温",
+      "match_name": "rustc",
+      "exclude": [],
+      "cpu_limit_percent": 70.0,
+      "memory_limit_mb": null,
+      "memory_action": "warn",
+      "priority": null,
+      "enabled": true,
+      "temperature_link": { "threshold_c": 78.0, "reduced_cpu_percent": 35.0 }
+    },
+    {
+      "id": "preset-global-thermal",
+      "name": "全局限温兜底",
+      "match_name": "*",
+      "exclude": ["liteprocguard", "systemd", "init", "kworker*"],
+      "cpu_limit_percent": null,
+      "memory_limit_mb": null,
+      "memory_action": "warn",
+      "priority": null,
+      "enabled": true,
+      "temperature_link": { "threshold_c": 85.0, "reduced_cpu_percent": 50.0 }
+    }
+  ],
+  "blacklist": [
+    "System", "Registry", "smss.exe", "csrss.exe", "wininit.exe",
+    "winlogon.exe", "services.exe", "lsass.exe", "svchost.exe",
+    "explorer.exe", "dwm.exe", "audiodg.exe", "MsMpEng.exe",
+    "SearchIndexer.exe", "systemd", "systemd-*", "init", "kthreadd",
+    "kworker*", "ksoftirqd*", "migration*", "watchdog*", "dbus-daemon",
+    "udevd", "systemd-udevd", "rsyslogd", "sshd", "cron", "crond",
+    "init*", "zygote*", "surfaceflinger", "logd", "vold", "healthd",
+    "liteprocguard"
+  ]
+}
