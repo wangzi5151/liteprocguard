@@ -130,6 +130,7 @@ sudo ./liteprocguard guard start -i 2 --temperature
 | Linux | arm64 | `liteprocguard-linux-arm64.tar.gz`（树莓派 3/4/5 64 位） |
 | Linux | armv7 | `liteprocguard-linux-armv7.tar.gz`（树莓派 2 / Zero 2 W） |
 | Linux | armv6 | `liteprocguard-raspi-armv6.tar.gz`（树莓派 1 / Zero） |
+| Termux / Android | aarch64 | `liteprocguard-termux-aarch64.tar.gz` |
 
 **方式二：从源码编译**（见 [从源码构建](#从源码构建--交叉编译)）
 

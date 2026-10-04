@@ -30,6 +30,7 @@
 | Linux | arm64 | `liteprocguard-linux-arm64.tar.gz` | 树莓派 3/4/5 64 位 |
 | Linux | armv7 | `liteprocguard-linux-armv7.tar.gz` | 树莓派 2/Zero 2 W |
 | Linux | armv6 | `liteprocguard-raspi-armv6.tar.gz` | 树莓派 1 / Zero |
+| Termux / Android | aarch64 | `liteprocguard-termux-aarch64.tar.gz` | Termux 单文件 |
 
 ## 校验
 

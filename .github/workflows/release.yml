@@ -1,0 +1,134 @@
+name: Release
+
+# 打 tag（v*）即触发：cross 交叉编译全部平台 -> 打包 -> 创建 GitHub Release 并上传产物。
+# 也支持在 Actions 页面手动触发（workflow_dispatch）做冒烟测试。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.friendly }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - friendly: windows-amd64
+            target: x86_64-pc-windows-gnu
+            bin: liteprocguard.exe
+          - friendly: windows-386
+            target: i686-pc-windows-gnu
+            bin: liteprocguard.exe
+          - friendly: linux-amd64
+            target: x86_64-unknown-linux-musl
+            bin: liteprocguard
+          - friendly: linux-arm64
+            target: aarch64-unknown-linux-musl
+            bin: liteprocguard
+          - friendly: linux-armv7
+            target: armv7-unknown-linux-musleabihf
+            bin: liteprocguard
+          - friendly: raspi-armv6
+            target: arm-unknown-linux-musleabihf
+            bin: liteprocguard
+          - friendly: termux-aarch64
+            target: aarch64-linux-android
+            bin: liteprocguard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (${{ matrix.target }})
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="dist/${{ matrix.friendly }}"
+          mkdir -p "$STAGE"
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGE/"
+          cp README.md LICENSE "$STAGE/"
+          cp -r presets "$STAGE/"
+          tar -czf "dist/liteprocguard-${{ matrix.friendly }}.tar.gz" -C dist "${{ matrix.friendly }}"
+          ls -lh "dist/liteprocguard-${{ matrix.friendly }}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.friendly }}
+          path: dist/liteprocguard-${{ matrix.friendly }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: pkg-*
+          merge-multiple: true
+
+      - name: SHA256SUMS
+        run: |
+          cd dist
+          sha256sum liteprocguard-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Compose release notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          {
+            echo "# LiteProcGuard ${TAG}"
+            echo
+            echo "> 纯本地、无遥测、无 AI 依赖、无强制后台驻留的跨平台进程资源节流守护工具。"
+            echo
+            echo "## 平台产物"
+            echo
+            echo "| 平台 | 架构 | 文件 |"
+            echo "| --- | --- | --- |"
+            echo "| Windows | amd64 | \`liteprocguard-windows-amd64.tar.gz\` |"
+            echo "| Windows | 386 | \`liteprocguard-windows-386.tar.gz\` |"
+            echo "| Linux | amd64 | \`liteprocguard-linux-amd64.tar.gz\`（静态链接） |"
+            echo "| Linux | arm64 | \`liteprocguard-linux-arm64.tar.gz\`（树莓派 3/4/5 64 位） |"
+            echo "| Linux | armv7 | \`liteprocguard-linux-armv7.tar.gz\`（树莓派 2 / Zero 2 W） |"
+            echo "| Linux | armv6 | \`liteprocguard-raspi-armv6.tar.gz\`（树莓派 1 / Zero） |"
+            echo "| Termux / Android | aarch64 | \`liteprocguard-termux-aarch64.tar.gz\` |"
+            echo
+            echo "每个压缩包内含单文件二进制 + README.md + LICENSE + presets/，解压即用，无需安装 Rust。"
+            echo
+            echo "## 校验"
+            echo
+            echo '```bash'
+            echo "sha256sum -c SHA256SUMS"
+            echo '```'
+            echo
+            echo "## 隐私承诺"
+            echo
+            echo "零外发网络请求：无遥测、无统计、无自动更新、无内置回连。Web UI 仅绑定 127.0.0.1。"
+          } > RELEASE_BODY.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/liteprocguard-*.tar.gz
+            dist/SHA256SUMS
+          body_path: RELEASE_BODY.md
+          generate_release_notes: true
