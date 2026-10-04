@@ -308,7 +308,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now liteprocguard
 
 ```bash
 pkg update && pkg install -y git rust binutils
-git clone https://github.com/yourname/liteprocguard.git
+git clone https://github.com/wangzi5151/liteprocguard.git
 cd liteprocguard
 bash build-termux.sh          # 一键编译；或：bash build-termux.sh run
 ```

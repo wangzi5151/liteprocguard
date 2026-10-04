@@ -7,7 +7,7 @@ authors = ["LiteProcGuard Contributors"]
 description = "纯本地、无遥测、跨平台进程资源节流守护工具（CPU 上限 / 内存硬阈值 / 自动降权 / 超限策略）"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/yourname/liteprocguard"
+repository = "https://github.com/wangzi5151/liteprocguard"
 keywords = ["process", "cpu", "memory", "cgroup", "resource"]
 categories = ["command-line-utilities", "os"]
 

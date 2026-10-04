@@ -14,7 +14,7 @@ pkg install -y git rust binutils
 ## 2. 获取并编译
 
 ```bash
-git clone https://github.com/yourname/liteprocguard.git
+git clone https://github.com/wangzi5151/liteprocguard.git
 cd liteprocguard
 bash build-termux.sh
 ```
